@@ -6,9 +6,8 @@ import java.io.IOException;
 
 public class CarritoGRPCserver {
     public static void main(String[] args) throws InterruptedException {
-        Server server = ServerBuilder.forPort(50051)
-                .addService(new CarritoServiceImpl())
-                .build();
+        InterfazServ gui = new InterfazServ();
+        Server server = ServerBuilder.forPort(50051).addService(new CarritoServiceImpl(gui)).build();
 
         try {
             server.start();

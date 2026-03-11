@@ -35,9 +35,12 @@ public class CarritoServiceImpl extends CarritoServiceGrpc.CarritoServiceImplBas
         inventario.put(p2.getId(), 50); //50 Mouse
 
     }
+
     //Método para listar los productos del carrito
     public void listarProductos() {
-
+        catalogo.forEach((id, producto) -> {
+            System.out.println(producto.getNombre() + " - Stock: " + inventario.get(id));
+        });
     }
 
     @Override
