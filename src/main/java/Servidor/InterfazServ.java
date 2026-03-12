@@ -1,18 +1,15 @@
 package Servidor;
 
-import com.tienda.grpc.CarritoRequest;
-import com.tienda.grpc.CarritoResponse;
-import io.grpc.stub.StreamObserver;
-
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import java.util.Map;
 
 
 public class InterfazServ extends JFrame {
     private DefaultTableModel model;
 
     public InterfazServ() {
-        setTitle("Monitor de Inventario gRPC");
+        setTitle("Monitor de Inventario GRPC");
         setSize(1920, 1080);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
@@ -22,7 +19,25 @@ public class InterfazServ extends JFrame {
         setVisible(true);
     }
 
-    public void procesarCarrito(){
+    public void cargarInventario(Map<String, Integer> inventario) {
+        model.setRowCount(0);
+        for (Map.Entry<String, Integer> entry : inventario.entrySet()) {
+            model.addRow(new Object[]{entry.getKey(), entry.getValue()});
+        }
+    }
 
+    /**
+     * Actualiza el stock de un producto específico
+     */
+    public void actualizarStock(String idProducto, int nuevoStock) {
+        for (int i = 0; i < model.getRowCount(); i++) {
+            String id = (String) model.getValueAt(i, 0);
+            if (id.equals(idProducto)) {
+                model.setValueAt(nuevoStock, i, 1);
+                return;
+            }
+        }
+        // Si no existe en la tabla lo agrega
+        model.addRow(new Object[]{idProducto, nuevoStock});
     }
 }

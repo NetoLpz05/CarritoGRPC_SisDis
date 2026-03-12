@@ -2,20 +2,23 @@ package Servidor;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import java.io.IOException;
 
 public class CarritoGRPCserver {
-    public static void main(String[] args) throws InterruptedException {
-        InterfazServ gui = new InterfazServ();
-        Server server = ServerBuilder.forPort(50051).addService(new CarritoServiceImpl(gui)).build();
+    private Server server;
+    private final int PORT = 50051;
 
-        try {
-            server.start();
-            System.out.println("Servidor de Carrito iniciado en el puerto 50051...");
-            server.awaitTermination();
-        } catch (IOException ex) {
-            System.getLogger(CarritoGRPCserver.class.getName())
-                    .log(System.Logger.Level.ERROR, (String) null, ex);
-        }
+    public void iniciar() throws Exception {
+        InterfazServ gui = new InterfazServ();
+        server = ServerBuilder.forPort(PORT).addService(new CarritoServiceImpl(gui)).build().start();
+
+        System.out.println("Servidor GRPC iniciado en el puerto " + PORT);
+        server.awaitTermination();
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        CarritoGRPCserver servidor = new CarritoGRPCserver();
+        servidor.iniciar();
+
     }
 }

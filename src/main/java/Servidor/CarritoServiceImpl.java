@@ -1,10 +1,11 @@
 package Servidor;
 
-import com.google.protobuf.Empty;
 import com.tienda.grpc.CarritoRequest;
 import com.tienda.grpc.CarritoResponse;
 import com.tienda.grpc.CarritoServiceGrpc;
 import com.tienda.grpc.Producto;
+import com.tienda.grpc.ListaProductos;
+import com.tienda.grpc.Empty;
 import io.grpc.stub.StreamObserver;
 
 import java.util.HashMap;
@@ -20,6 +21,7 @@ public class CarritoServiceImpl extends CarritoServiceGrpc.CarritoServiceImplBas
     public CarritoServiceImpl(InterfazServ gui) {
         this.gui = gui;
         inicializarDatos();
+        gui.cargarInventario(inventario);
     }
 
     //Método para llenar el inventario y el catálogo de la tienda
@@ -36,40 +38,84 @@ public class CarritoServiceImpl extends CarritoServiceGrpc.CarritoServiceImplBas
 
     }
 
-    //Método para listar los productos del carrito
-    public void listarProductos() {
-        catalogo.forEach((id, producto) -> {
-            System.out.println(producto.getNombre() + " - Stock: " + inventario.get(id));
-        });
+    @Override
+    public void listarProductos(Empty request, StreamObserver<ListaProductos> responseObserver) {
+        ListaProductos.Builder lista = ListaProductos.newBuilder();
+        for (Producto p : catalogo.values()) {
+            Producto productoConStock = Producto.newBuilder()
+                    .setId(p.getId())
+                    .setNombre(p.getNombre())
+                    .setPrecio(p.getPrecio())
+                    .setCantidad(inventario.getOrDefault(p.getId(), 0))
+                    .build();
+            lista.addProductos(productoConStock);
+        }
+        responseObserver.onNext(lista.build());
+        responseObserver.onCompleted();
     }
 
     @Override
-    public void procesarCarrito(CarritoRequest request, StreamObserver<CarritoResponse> responseObserver){
-        System.out.println("Procesando carrito para el usuario: "
-                + request.getUsuarioId());
+    public void procesarCarrito(CarritoRequest request, StreamObserver<CarritoResponse> responseObserver) {
+        System.out.println("Procesando carrito del usuario: " + request.getUsuarioId());
+
+        //Validar carrito vacío
+        if (request.getItemsCount() == 0) {
+            CarritoResponse error = CarritoResponse.newBuilder().setEstado("CARRITO_VACIO").setTransaccionId("N/A")
+                    .setTotalNeto(0).setImpuestos(0).setTotalPagar(0).build();
+
+            responseObserver.onNext(error);
+            responseObserver.onCompleted();
+            return;
+        }
 
         double subtotal = 0;
 
-        /* Iteramos sobre la lista repetida de productos
-           definida en el archivo proto */
+        //Validar productos del carrito
         for (Producto p : request.getItemsList()) {
+            if (p.getCantidad() <= 0 || p.getPrecio() <= 0) {
+                CarritoResponse error = CarritoResponse.newBuilder()
+                        .setEstado("DATOS_INVALIDOS").setTransaccionId("N/A").setTotalNeto(0).setImpuestos(0).setTotalPagar(0).build();
+
+                responseObserver.onNext(error);
+                responseObserver.onCompleted();
+                return;
+            }
+
+            int stockActual = inventario.getOrDefault(p.getId(), 0);
+
+            if (stockActual < p.getCantidad()) {
+
+                CarritoResponse error = CarritoResponse.newBuilder()
+                        .setEstado("SIN_STOCK")
+                        .setTransaccionId("N/A")
+                        .setTotalNeto(0)
+                        .setImpuestos(0)
+                        .setTotalPagar(0)
+                        .build();
+
+                responseObserver.onNext(error);
+                responseObserver.onCompleted();
+                return;
+            }
+
             subtotal += p.getPrecio() * p.getCantidad();
         }
 
-        double impuestos = subtotal * 0.16; // IVA del 16%
+        //Descontar inventario
+        for (Producto p : request.getItemsList()) {
+            inventario.computeIfPresent(p.getId(),
+                    (k, v) -> v - p.getCantidad());
+            gui.actualizarStock(p.getId(), inventario.get(p.getId()));
+        }
+
+        double impuestos = subtotal * 0.16;
         double total = subtotal + impuestos;
 
-        /* Construimos la respuesta usando el Builder
-           generado por Protobuf */
-        CarritoResponse response = CarritoResponse.newBuilder()
-                .setTransaccionId(UUID.randomUUID().toString())
-                .setTotalNeto(subtotal)
-                .setImpuestos(impuestos)
-                .setTotalPagar(total)
-                .setEstado("EXITOSO")
-                .build();
+        CarritoResponse response = CarritoResponse.newBuilder().setTransaccionId(UUID.randomUUID().toString())
+                .setTotalNeto(subtotal).setImpuestos(impuestos).setTotalPagar(total)
+                .setEstado("EXITOSO").build();
 
-        responseObserver.onNext(response); // Enviamos al cliente
+        responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 }
